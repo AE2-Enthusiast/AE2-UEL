@@ -18,6 +18,7 @@
 
 package appeng.me.cache;
 
+import appeng.core.AELog;
 
 import appeng.api.config.AccessRestriction;
 import appeng.api.config.Actionable;
@@ -75,11 +76,21 @@ public class EnergyGridCache implements IEnergyGrid {
     private final HashMap<IGridNode, IEnergyWatcher> watchers = new HashMap<>();
 
     /**
-     * estimated power available.
+     * real power available.
      */
     private int availableTicksSinceUpdate = 0;
     private double globalAvailablePower = 0;
     private double globalMaxPower = MAX_BUFFER_STORAGE;
+    private double amountInStorage = 0;
+
+    /**
+     * isCapped means that in this tick the power capped at either the max or
+     * minimum (0)
+     * wasCapped means that in the last tick the power had capped at either the
+     * max or minimum
+     */
+    private boolean isCapped = false;
+    private boolean wasCapped = false;
 
     /**
      * idle draw.
@@ -150,10 +161,15 @@ public class EnergyGridCache implements IEnergyGrid {
 
     @Override
     public void onUpdateTick() {
-        if (!this.interests.isEmpty()) {
-            final double oldPower = this.lastStoredPower;
-            this.lastStoredPower = this.getStoredPower();
-
+        if (!this.isCapped) {
+            this.writeToWorld(this.globalAvailablePower - this.amountInStorage);
+        }
+	this.wasCapped = this.isCapped;
+	this.isCapped = false;
+            
+	if (!this.interests.isEmpty()) {
+	    final double oldPower = this.lastStoredPower;
+	    this.lastStoredPower = this.getStoredPower();
             final EnergyThreshold low = new EnergyThreshold(Math.min(oldPower, this.lastStoredPower), Integer.MIN_VALUE);
             final EnergyThreshold high = new EnergyThreshold(Math.max(oldPower, this.lastStoredPower), Integer.MAX_VALUE);
 
@@ -256,7 +272,7 @@ public class EnergyGridCache implements IEnergyGrid {
         this.globalAvailablePower = 0;
         for (final IAEPowerStorage p : this.providers) {
             this.globalAvailablePower += p.getAECurrentPower();
-        }
+        }	
     }
 
     @Override
@@ -266,117 +282,46 @@ public class EnergyGridCache implements IEnergyGrid {
 
     @Override
     public double extractProviderPower(final double amt, final Actionable mode) {
-        double extractedPower = 0;
-
-        this.providers.addAll(providersToAdd);
-        providersToAdd.clear();
-        providers.removeIf(providerToRemove::contains);
-        this.providerToRemove.clear();
-
-        final Iterator<IAEPowerStorage> it = this.providers.iterator();
-
-        ongoingExtractOperation = true;
-        boolean ls = false;
-        try {
-            while (extractedPower < amt && it.hasNext()) {
-                final IAEPowerStorage node = it.next();
-                if (node != null) {
-                    if (node == localStorage && mode == Actionable.MODULATE) {
-                        ls = true;
-                        continue;
-                    }
-
-                    final double req = amt - extractedPower;
-                    final double newPower = node.extractAEPower(req, mode, PowerMultiplier.ONE);
-                    extractedPower += newPower;
-
-                    if (newPower < req && mode == Actionable.MODULATE) {
-                        it.remove();
-                    }
-                } else {
-                    it.remove();
-                }
-            }
-        } finally {
-            ongoingExtractOperation = false;
-            if (ls && extractedPower < amt) {
-                final double req = amt - extractedPower;
-                final double newPower = localStorage.extractAEPower(req, mode, PowerMultiplier.ONE);
-
-                extractedPower += newPower;
-
-                if (newPower < req) {
-                    providers.remove(localStorage);
-                }
-            }
-        }
-
-        final double result = Math.min(extractedPower, amt);
+	double extracted = Math.min(amt, this.globalAvailablePower);
 
         if (mode == Actionable.MODULATE) {
-            if (extractedPower > amt) {
-                this.localStorage.addCurrentAEPower(extractedPower - amt);
+            this.globalAvailablePower -= extracted;
+            this.tickDrainPerTick += extracted;
+            if (this.globalAvailablePower <= 0) {
+                if (!this.isCapped && !this.wasCapped) {
+		    this.writeToWorld(-this.amountInStorage);
+		}
+		this.isCapped = true;
             }
-
-            this.globalAvailablePower -= result;
-            this.tickDrainPerTick += result;
         }
 
-        return result;
+        
+        return extracted;
     }
 
     @Override
     public double injectProviderPower(double amt, final Actionable mode) {
-        final double originalAmount = amt;
-
-        this.requesters.addAll(requesterToAdd);
-        requesterToAdd.clear();
-        requesters.removeIf(requesterToRemove::contains);
-        this.requesterToRemove.clear();
-
-        final Iterator<IAEPowerStorage> it = this.requesters.iterator();
-
-        ongoingInjectOperation = true;
-        try {
-            while (amt > 0 && it.hasNext()) {
-                final IAEPowerStorage node = it.next();
-
-                if (node != null) {
-                    amt = node.injectAEPower(amt, mode);
-
-                    if (amt > 0 && mode == Actionable.MODULATE) {
-                        it.remove();
-                    }
-                } else {
-                    it.remove();
-                }
-            }
-        } finally {
-            ongoingInjectOperation = false;
-        }
-
-        final double overflow = Math.max(0.0, amt);
+	double toStore = Math.min(amt, this.globalMaxPower - this.globalAvailablePower);
 
         if (mode == Actionable.MODULATE) {
-            this.tickInjectionPerTick += originalAmount - overflow;
+            this.globalAvailablePower += toStore;
+            this.tickInjectionPerTick += toStore;
+            if (this.globalAvailablePower >= this.globalMaxPower) {
+                if (!this.isCapped && !this.wasCapped) {
+		    this.writeToWorld(this.globalMaxPower - this.amountInStorage);
+		}
+		this.isCapped = true;
+            }
         }
 
-        return overflow;
+        
+
+        return amt - toStore;
     }
 
     @Override
     public double getProviderEnergyDemand(final double maxRequired) {
-        double required = 0;
-
-        final Iterator<IAEPowerStorage> it = this.requesters.iterator();
-        while (required < maxRequired && it.hasNext()) {
-            final IAEPowerStorage node = it.next();
-            if (node.getPowerFlow() != AccessRestriction.READ) {
-                required += Math.max(0.0, node.getAEMaxPower() - node.getAECurrentPower());
-            }
-        }
-
-        return required;
+        return this.globalMaxPower - this.globalAvailablePower;
     }
 
     @Override
@@ -420,7 +365,6 @@ public class EnergyGridCache implements IEnergyGrid {
 
     @Override
     public double getStoredPower() {
-        this.refreshPower();
         return Math.max(0.0, this.globalAvailablePower);
     }
 
@@ -478,8 +422,11 @@ public class EnergyGridCache implements IEnergyGrid {
             final IAEPowerStorage ps = (IAEPowerStorage) machine;
             if (ps.isAEPublicPowerStorage()) {
                 if (ps.getPowerFlow() != AccessRestriction.WRITE) {
+		    this.isCapped = false;
                     this.globalMaxPower -= ps.getAEMaxPower();
-                    this.globalAvailablePower -= ps.getAECurrentPower();
+		    double current = ps.getAECurrentPower();
+                    this.globalAvailablePower -= current;
+		    this.amountInStorage -= current;
                 }
                 if (!ongoingExtractOperation) {
                     removeProvider(ps);
@@ -541,15 +488,18 @@ public class EnergyGridCache implements IEnergyGrid {
         if (machine instanceof IAEPowerStorage) {
             final IAEPowerStorage ps = (IAEPowerStorage) machine;
             if (ps.isAEPublicPowerStorage()) {
+                
                 final double max = ps.getAEMaxPower();
                 final double current = ps.getAECurrentPower();
 
                 if (ps.getPowerFlow() != AccessRestriction.WRITE) {
+		    this.isCapped = false;
                     this.globalMaxPower += ps.getAEMaxPower();
                 }
 
                 if (current > 0 && ps.getPowerFlow() != AccessRestriction.WRITE) {
                     this.globalAvailablePower += current;
+		    this.amountInStorage += current;
                     if (!ongoingExtractOperation) {
                         addProvider(ps);
                     } else {
@@ -578,6 +528,56 @@ public class EnergyGridCache implements IEnergyGrid {
         for (IGrid grid : TickHandler.INSTANCE.getGridList()) {
             grid.postEventTo(node, new MENetworkPowerStatusChange());
         }
+    }
+
+    private void writeToWorld(double amt) {
+	double overflow = 0;
+	this.amountInStorage += amt;
+	    
+	this.requesters.addAll(requesterToAdd);
+	this.requesterToAdd.clear();
+	this.requesters.removeAll(requesterToRemove);
+	this.requesterToRemove.clear();
+
+	this.providers.addAll(providersToAdd);
+	this.providersToAdd.clear();
+	this.providers.removeAll(providerToRemove);
+	this.providerToRemove.clear();
+
+	if (amt > 0) {
+	    AELog.info("Injecting %f AE into storage", amt);
+	    this.ongoingInjectOperation = true;
+            Iterator<IAEPowerStorage> it = this.requesters.iterator();
+            while (it.hasNext()) {
+                IAEPowerStorage requester = it.next();
+		amt = requester.injectAEPower(amt, Actionable.MODULATE);
+		if (amt <= 0) {
+		    break;
+		} else { //requester couldn't take it all, must be full
+                    it.remove();
+                }
+            }
+	    this.ongoingInjectOperation = false;
+	} else if (amt < 0) {
+	    amt = -amt;
+	    AELog.info("Extracting %f AE from storage", amt);
+	    this.ongoingExtractOperation = true;
+            Iterator<IAEPowerStorage> it = this.providers.iterator();
+            while (it.hasNext()) {
+                IAEPowerStorage provider = it.next();
+		amt -= provider.extractAEPower(amt, Actionable.MODULATE, PowerMultiplier.ONE);
+		if (amt <= 0) {
+		    break;
+		} else { //provider couldn't give enough, must be empty
+                    it.remove();
+                }
+            }
+	    this.ongoingExtractOperation = false;
+	}
+
+	if (amt != 0) {
+	    AELog.info("EnergyGrid storage overflowed? " + amt + " AE Couldn't fit in storage");
+	}
     }
 
     @Override
