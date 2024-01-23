@@ -24,10 +24,13 @@ import appeng.api.parts.IPartModel;
 import appeng.api.util.AECableType;
 import appeng.api.util.AEColor;
 import appeng.block.networking.BlockCableBus;
+import appeng.client.render.model.UVLModelLoader;
+
 import com.google.common.cache.CacheBuilder;
 import com.google.common.cache.CacheLoader;
 import com.google.common.cache.LoadingCache;
 import com.google.common.cache.Weigher;
+
 import net.minecraft.block.state.IBlockState;
 import net.minecraft.client.Minecraft;
 import net.minecraft.client.renderer.block.model.BakedQuad;
@@ -100,6 +103,9 @@ public class CableBusBakedModel implements IBakedModel {
             // First, handle the cable at the center of the cable bus
             final List<BakedQuad> cableModel = cableModelCache.getUnchecked(renderState);
             quads.addAll(cableModel);
+	}
+
+	if (layer == BlockRenderLayer.CUTOUT || layer.ordinal() == 4) {
 
             // Then handle attachments
             for (EnumFacing facing : EnumFacing.values()) {
@@ -115,16 +121,21 @@ public class CableBusBakedModel implements IBakedModel {
                         throw new IllegalStateException("Trying to use an unregistered part model: " + model);
                     }
 
-                    List<BakedQuad> partQuads;
+                    List<BakedQuad> partQuads = Collections.emptyList();
+		    if (bakedModel instanceof UVLModelLoader.UVLModel.UVLBakedModel) {
+			partQuads = bakedModel.getQuads(state, null, rand);
+		    } else if (layer == BlockRenderLayer.CUTOUT) {
                     if (bakedModel instanceof IPartBakedModel) {
                         partQuads = ((IPartBakedModel) bakedModel).getPartQuads(renderState.getPartFlags().get(facing), rand);
                     } else {
                         partQuads = bakedModel.getQuads(state, null, rand);
                     }
-
+		    }
                     // Rotate quads accordingly
+		    if (partQuads != null) {
                     QuadRotator rotator = new QuadRotator();
                     partQuads = rotator.rotateQuads(partQuads, facing, EnumFacing.UP);
+		    }
 
                     quads.addAll(partQuads);
                 }
