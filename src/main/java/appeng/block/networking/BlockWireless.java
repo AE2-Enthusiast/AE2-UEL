@@ -73,6 +73,13 @@ public class BlockWireless extends AEBaseTileBlock implements ICustomCollision {
         return BlockRenderLayer.CUTOUT;
     }
 
+    /*
+    @Override
+    public boolean canRenderInLayer(IBlockState state, BlockRenderLayer layer) {
+	return (state.getValue(STATE) != State.OFF && layer.ordinal() == 4) || layer == BlockRenderLayer.CUTOUT;
+    }
+    */
+
     @Override
     public IBlockState getActualState(IBlockState state, IBlockAccess worldIn, BlockPos pos) {
         State teState = State.OFF;
@@ -193,7 +200,7 @@ public class BlockWireless extends AEBaseTileBlock implements ICustomCollision {
                     maxZ = maxY = 13.0 / 16.0;
                     maxX = 11.0 / 16.0;
                     minX = 0.0;
-                    break;
+                     break;
                 case NORTH:
                     minY = minX = 3.0 / 16.0;
                     maxY = maxX = 13.0 / 16.0;

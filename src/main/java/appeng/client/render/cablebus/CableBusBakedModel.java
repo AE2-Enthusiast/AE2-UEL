@@ -24,6 +24,7 @@ import appeng.api.parts.IPartModel;
 import appeng.api.util.AECableType;
 import appeng.api.util.AEColor;
 import appeng.block.networking.BlockCableBus;
+import appeng.client.render.cablebus.P2PTunnelFrequencyBakedModel;
 import appeng.client.render.model.UVLModelLoader;
 
 import com.google.common.cache.CacheBuilder;
@@ -134,13 +135,20 @@ public class CableBusBakedModel implements IBakedModel {
                     List<BakedQuad> partQuads = Collections.emptyList();
 		    if (bakedModel instanceof UVLModelLoader.UVLModel.UVLBakedModel) {
 			partQuads = bakedModel.getQuads(state, null, rand);
-		    } else if (layer == BlockRenderLayer.CUTOUT) {
-                    if (bakedModel instanceof IPartBakedModel) {
+		    } else if (bakedModel instanceof IPartBakedModel) {
+                    if (bakedModel instanceof P2PTunnelFrequencyBakedModel) {
+                        boolean powered = (renderState.getPartFlags().get(facing).longValue() & 0x10000L) != 0;
+                        if (powered && layer.ordinal() == 4) {
+                        partQuads = ((P2PTunnelFrequencyBakedModel) bakedModel).getPartQuads(renderState.getPartFlags().get(facing), rand);
+                        } else if (layer == BlockRenderLayer.CUTOUT) {
+                            partQuads = ((P2PTunnelFrequencyBakedModel) bakedModel).getPartQuads(renderState.getPartFlags().get(facing), rand);
+                        }
+                    } else if (layer == BlockRenderLayer.CUTOUT) {
                         partQuads = ((IPartBakedModel) bakedModel).getPartQuads(renderState.getPartFlags().get(facing), rand);
-                    } else {
+                    }
+                    } else if (layer == BlockRenderLayer.CUTOUT) {
                         partQuads = bakedModel.getQuads(state, null, rand);
                     }
-		    }
                     // Rotate quads accordingly
 		    if (partQuads != null) {
                     QuadRotator rotator = new QuadRotator();

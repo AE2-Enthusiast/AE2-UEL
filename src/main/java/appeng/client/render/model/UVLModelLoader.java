@@ -21,14 +21,12 @@ package appeng.client.render.model;
 
 import appeng.client.render.VertexFormats;
 import appeng.core.AELog;
-
 import com.google.common.base.Charsets;
 import com.google.common.base.Throwables;
 import com.google.common.collect.ImmutableList;
 import com.google.common.collect.ImmutableSet;
 import com.google.common.collect.Sets;
 import com.google.gson.*;
-
 import net.minecraft.block.state.IBlockState;
 import net.minecraft.client.Minecraft;
 import net.minecraft.client.renderer.EnumFaceDirection;
@@ -60,8 +58,10 @@ import net.minecraftforge.fml.relauncher.ReflectionHelper;
 import org.apache.commons.io.IOUtils;
 import org.apache.commons.lang3.tuple.ImmutablePair;
 import org.apache.commons.lang3.tuple.Pair;
+import org.lwjgl.util.vector.Matrix4f;
 import org.lwjgl.util.vector.Vector2f;
 import org.lwjgl.util.vector.Vector3f;
+import org.lwjgl.util.vector.Vector4f;
 
 import javax.annotation.Nullable;
 import java.io.IOException;
@@ -98,7 +98,7 @@ public enum UVLModelLoader implements ICustomModelLoader {
 
             Class clas = Class.forName(ModelLoader.class.getName() + "$VanillaModelWrapper");
             vanillaModelWrapper = clas.getDeclaredConstructor(ModelLoader.class, ResourceLocation.class, ModelBlock.class, boolean.class,
-                    ModelBlockAnimation.class);
+                                                              ModelBlockAnimation.class);
             vanillaModelWrapper.setAccessible(true);
 
             Class<?> vanillaLoaderClass = Class.forName(ModelLoader.class.getName() + "$VanillaLoader");
@@ -163,9 +163,9 @@ public enum UVLModelLoader implements ICustomModelLoader {
         }
 
         try (InputStreamReader io = new InputStreamReader(Minecraft.getMinecraft()
-                .getResourceManager()
-                .getResource(new ResourceLocation(modelLocation.getNamespace(), "models/" + modelPath + ".json"))
-                .getInputStream())) {
+                                                          .getResourceManager()
+                                                          .getResource(new ResourceLocation(modelLocation.getNamespace(), "models/" + modelPath + ".json"))
+                                                          .getInputStream())) {
             return gson.fromJson(io, UVLMarker.class).ae2_uvl_marker;
         } catch (Exception e) {
             // Catch-all in case of any JSON parser issues.
@@ -180,14 +180,18 @@ public enum UVLModelLoader implements ICustomModelLoader {
     }
 
     public class UVLModel implements IModel {
+
+	private static final float SCALE_ROTATION_22_5 = 1.0F / (float)Math.cos(0.39269909262657166D) - 1.0F;
+	private static final float SCALE_ROTATION_GENERAL = 1.0F / (float)Math.cos((Math.PI / 4D)) - 1.0F;
+	
         final Gson UVLSERIALIZER = (new GsonBuilder()).registerTypeAdapter(ModelBlock.class, deserializer(ModelBlock.class))
-                .registerTypeAdapter(BlockPart.class, deserializer(BlockPart.class))
-                .registerTypeAdapter(BlockPartFace.class, new BlockPartFaceOverrideSerializer())
-                .registerTypeAdapter(BlockFaceUV.class, deserializer(BlockFaceUV.class))
-                .registerTypeAdapter(ItemTransformVec3f.class, deserializer(ItemTransformVec3f.class))
-                .registerTypeAdapter(ItemCameraTransforms.class, deserializer(ItemCameraTransforms.class))
-                .registerTypeAdapter(ItemOverride.class, deserializer(ItemOverride.class))
-                .create();
+            .registerTypeAdapter(BlockPart.class, deserializer(BlockPart.class))
+            .registerTypeAdapter(BlockPartFace.class, new BlockPartFaceOverrideSerializer())
+            .registerTypeAdapter(BlockFaceUV.class, deserializer(BlockFaceUV.class))
+            .registerTypeAdapter(ItemTransformVec3f.class, deserializer(ItemTransformVec3f.class))
+            .registerTypeAdapter(ItemCameraTransforms.class, deserializer(ItemCameraTransforms.class))
+            .registerTypeAdapter(ItemOverride.class, deserializer(ItemOverride.class))
+            .create();
 
         private final Map<BlockPartFace, Pair<Float, Float>> uvlightmap = new HashMap<>();
 
@@ -198,8 +202,8 @@ public enum UVLModelLoader implements ICustomModelLoader {
         private static final FaceBakery faceBakery = new FaceBakery();
 
         public UVLModel(ResourceLocation modelLocation) {
-        	this.location = modelLocation;
-        	String modelPath = modelLocation.getPath();
+            this.location = modelLocation;
+            String modelPath = modelLocation.getPath();
             if (modelLocation.getPath().startsWith("models/")) {
                 modelPath = modelPath.substring("models/".length());
             }
@@ -214,9 +218,9 @@ public enum UVLModelLoader implements ICustomModelLoader {
                     String s = modelLocation.getPath();
 
                     iresource = Minecraft.getMinecraft()
-                            .getResourceManager()
-                            .getResource(
-                                    new ResourceLocation(modelLocation.getNamespace(), "models/" + modelPath + ".json"));
+                        .getResourceManager()
+                        .getResource(
+                                     new ResourceLocation(modelLocation.getNamespace(), "models/" + modelPath + ".json"));
                     reader = new InputStreamReader(iresource.getInputStream(), Charsets.UTF_8);
 
                     lvt_5_1_ = JsonUtils.gsonDeserialize(this.UVLSERIALIZER, reader, ModelBlock.class, false);
@@ -235,18 +239,18 @@ public enum UVLModelLoader implements ICustomModelLoader {
 
         @Override
         public Collection<ResourceLocation> getDependencies() {
-        	Set<ResourceLocation> set = Sets.newHashSet();
+            Set<ResourceLocation> set = Sets.newHashSet();
             for(ResourceLocation dep : model.getOverrideLocations())
-            {
-                if(!location.equals(dep))
                 {
-                    set.add(dep);
+                    if(!location.equals(dep))
+                        {
+                            set.add(dep);
+                        }
                 }
-            }
             if(model.getParentLocation() != null && !model.getParentLocation().getPath().startsWith("builtin/"))
-            {
-                set.add(model.getParentLocation());
-            }
+                {
+                    set.add(model.getParentLocation());
+                }
             return ImmutableSet.copyOf(set);
         }
 
@@ -255,108 +259,109 @@ public enum UVLModelLoader implements ICustomModelLoader {
             // setting parent here to make textures resolve properly
             ResourceLocation parentLocation = model.getParentLocation();
             if(parentLocation != null && model.parent == null)
-            {
+                {
                     model.parent = ModelLoaderRegistry.getModelOrLogError(parentLocation, "Could not load vanilla model parent '" + parentLocation + "' for '" + model + "'")
-                            .asVanillaModel().orElseThrow(() -> new IllegalStateException("vanilla model '" + model + "' can't have non-vanilla parent"));
-            }
-                ImmutableSet.Builder<ResourceLocation> builder = ImmutableSet.builder();
+                        .asVanillaModel().orElseThrow(() -> new IllegalStateException("vanilla model '" + model + "' can't have non-vanilla parent"));
+                }
+            ImmutableSet.Builder<ResourceLocation> builder = ImmutableSet.builder();
 
-                for(String s : model.textures.values())
+            for(String s : model.textures.values())
                 {
                     if(!s.startsWith("#"))
-                    {
-                        builder.add(new ResourceLocation(s));
-                    }
+                        {
+                            builder.add(new ResourceLocation(s));
+                        }
                 }
-                return builder.build();
+            return builder.build();
             
         }
 
         @Override
         public IBakedModel bake(IModelState state, VertexFormat format, Function<ResourceLocation, TextureAtlasSprite> bakedTextureGetter) {
-        	final TRSRTransformation baseState = state.apply(Optional.empty()).orElse(TRSRTransformation.identity());
-        	TextureAtlasSprite particle = bakedTextureGetter.apply(new ResourceLocation(model.resolveTextureName("particle")));
-                List<BakedQuad> generalCutout = new ArrayList<>();
-                List<BakedQuad> generalBloom = new ArrayList<>();
-                Map<EnumFacing, List<BakedQuad>> facingCutout = new HashMap<>();
-                Map<EnumFacing, List<BakedQuad>> facingBloom = new HashMap<>();
-                for (EnumFacing facing : EnumFacing.values()) {
-                    facingCutout.put(facing, new ArrayList<>());
-                    facingBloom.put(facing, new ArrayList<>());
-                }
+            final TRSRTransformation baseState = state.apply(Optional.empty()).orElse(TRSRTransformation.identity());
+            TextureAtlasSprite particle = bakedTextureGetter.apply(new ResourceLocation(model.resolveTextureName("particle")));
+            List<BakedQuad> generalCutout = new ArrayList<>();
+            List<BakedQuad> generalBloom = new ArrayList<>();
+            Map<EnumFacing, List<BakedQuad>> facingCutout = new HashMap<>();
+            Map<EnumFacing, List<BakedQuad>> facingBloom = new HashMap<>();
+            for (EnumFacing facing : EnumFacing.values()) {
+                facingCutout.put(facing, new ArrayList<>());
+                facingBloom.put(facing, new ArrayList<>());
+            }
             
             
-                for(int i = 0; i < model.getElements().size(); i++)
-                    {
-                        if(state.apply(Optional.of(Models.getHiddenModelPart(ImmutableList.of(Integer.toString(i))))).isPresent())
-                            {
-                                continue;
-                            }
-                        BlockPart part = model.getElements().get(i);
-                        TRSRTransformation transformation = baseState;
+            for(int i = 0; i < model.getElements().size(); i++)
+                {
+                    if(state.apply(Optional.of(Models.getHiddenModelPart(ImmutableList.of(Integer.toString(i))))).isPresent())
+                        {
+                            continue;
+                        }
+                    BlockPart part = model.getElements().get(i);
+                    TRSRTransformation transformation = baseState;
             
-                        for(Map.Entry<EnumFacing, BlockPartFace> e : part.mapFaces.entrySet())
-                            {
-                                TextureAtlasSprite textureatlassprite1 = bakedTextureGetter.apply(new ResourceLocation(model.resolveTextureName(e.getValue().texture)));
+                    for(Map.Entry<EnumFacing, BlockPartFace> e : part.mapFaces.entrySet())
+                        {
+                            TextureAtlasSprite textureatlassprite1 = bakedTextureGetter.apply(new ResourceLocation(model.resolveTextureName(e.getValue().texture)));
 
-                                BakedQuad quad;
-                                EnumFacing facing = null;
-                                if (e.getValue().cullFace == null || !TRSRTransformation.isInteger(transformation.getMatrix()))
-                                    {
-                                        quad = makeBakedQuad(part, e.getValue(), textureatlassprite1, e.getKey(), transformation, uvLocked, format);
-                                    }
-                                else
-                                    {
-                                        facing = baseState.rotate(e.getValue().cullFace);
-                                        quad = makeBakedQuad(part, e.getValue(), textureatlassprite1, e.getKey(), transformation, uvLocked, format);
-                                    }
-                                if (this.uvlightmap.get(e.getValue()) != null) {
-                                    //TODO make brightness values actually matter
-				    //int[] data = new int[quad.getVertexData().length + 1];
-				    //System.arraycopy(quad.getVertexData(), 0, data, 0, quad.getVertexData().length + 1);
-                                    //quad = new BakedQuad(data, quad.getTintIndex(), quad.getFace(), quad.getSprite(), quad.shouldApplyDiffuseLighting(), new VertexFormat(quad.getFormat()).addElement(DefaultVertexFormats.TEX_2S));
-                                    if (facing != null) {
-                                        facingBloom.get(facing).add(quad);
-                                    } else {
-                                        generalBloom.add(quad);
-                                    }
-                	
-                                } else {
-                                    if (facing != null) {
-                                        facingCutout.get(facing).add(quad);
-                                    } else {
-                                        generalCutout.add(quad);               	}
+                            BakedQuad quad;
+                            EnumFacing facing = null;
+                            if (e.getValue().cullFace == null || !TRSRTransformation.isInteger(transformation.getMatrix()))
+                                {
+                                    quad = makeBakedQuad(part, e.getValue(), textureatlassprite1, e.getKey(), transformation, uvLocked, format);
                                 }
+                            else
+                                {
+                                    facing = baseState.rotate(e.getValue().cullFace);
+                                    quad = makeBakedQuad(part, e.getValue(), textureatlassprite1, e.getKey(), transformation, uvLocked, format);
+                                }
+                            if (this.uvlightmap.get(e.getValue()) != null) {
+                                if (facing != null) {
+                                    facingBloom.get(facing).add(quad);
+                                } else {
+                                    generalBloom.add(quad);
+                                }
+                	
+                            } else {
+                                if (facing != null) {
+                                    facingCutout.get(facing).add(quad);
+                                } else {
+                                    generalCutout.add(quad);               	}
                             }
-                    }
-                return new UVLBakedModel(generalCutout, facingCutout, generalBloom, facingBloom, particle);
+                        }
+                }
+            return new UVLBakedModel(generalCutout, facingCutout, generalBloom, facingBloom, particle, this.model.isGui3d(), this.model.isAmbientOcclusion(), this.model.createOverrides());
         }
         
         private BakedQuad makeBakedQuad(BlockPart part, BlockPartFace face, TextureAtlasSprite sprite, EnumFacing facing, net.minecraftforge.common.model.ITransformation transform, boolean uvLocked, VertexFormat format)
         {
         	
-        	Pair<Float, Float> light = uvlightmap.get(face);
-        	boolean hasLightmap = false;
-        	if (light != null) {
-        		hasLightmap = (light.getLeft() > 0 || light.getRight() > 0);// && !FMLClientHandler.instance().hasOptifine();
-        	}
-            /*if (hasLightmap) { 
-                if (format == DefaultVertexFormats.ITEM) { // ITEM is convertable to BLOCK (replace normal+padding with lmap)
-                    format = DefaultVertexFormats.BLOCK;
-                } else if (!format.getElements().contains(DefaultVertexFormats.TEX_2S)) { // Otherwise, this format is unknown, add TEX_2S if it does not exist
-                    format = new VertexFormat(format).addElement(DefaultVertexFormats.TEX_2S);
-                }
-            }*/
-            
-        	format = new VertexFormat();
-        	format.addElement(DefaultVertexFormats.POSITION_3F);
-        	format.addElement(DefaultVertexFormats.TEX_2F);
-        	
-        	if (hasLightmap) {
-        		format.addElement(DefaultVertexFormats.TEX_2S);
+            Pair<Float, Float> light = uvlightmap.get(face);
+            boolean hasLightmap = false;
+            if (light != null) {
+                hasLightmap = (light.getLeft() > 0 || light.getRight() > 0);// && !FMLClientHandler.instance().hasOptifine();
             }
-            
-            
+	    /*
+	      if (hasLightmap) { 
+	      format = VertexFormats.getFormatWithLightMap(format);
+	      }
+	    
+            /*
+	      format = new VertexFormat();
+	      format.addElement(DefaultVertexFormats.POSITION_3F);
+	      format.addElement(DefaultVertexFormats.TEX_2F);
+        	
+	      if (hasLightmap) {
+	      format.addElement(DefaultVertexFormats.TEX_2S);
+	      }*/
+
+              		   
+            if (hasLightmap) {
+		format = DefaultVertexFormats.POSITION_TEX_LMAP_COLOR;
+	    } else {
+		format = DefaultVertexFormats.POSITION_TEX_COLOR;
+	    }
+              
+	    
             
             UnpackedBakedQuad.Builder builder = new UnpackedBakedQuad.Builder(format);
             builder.setQuadOrientation(facing);
@@ -374,8 +379,13 @@ public enum UVLModelLoader implements ICustomModelLoader {
                     case UV:
                         if (ele.getIndex() == 1) {
                             //Stuff for fullbright, no clue which side is sky or block light
-                        	if (hasLightmap)
-                            builder.put(i, 0xFFFF, 0xFFFF);
+			    if (hasLightmap) {
+                                final float lightMapU = (float) (15 * 0x20) / 0xFFFF;
+                                final float lightMapV = (float) (15 * 0x20) / 0xFFFF;
+                                builder.put(i, lightMapU, lightMapV);
+                            } else {
+				builder.put(i, 1, 1);
+			    }
                         } else if (ele.getIndex() == 0) {
                             BlockFaceUV faceUV = face.blockFaceUV;
                             builder.put(i, sprite.getInterpolatedU((double)faceUV.getVertexU(v) * .999 + faceUV.getVertexU((v + 2) % 4) * .001), sprite.getInterpolatedV((double)faceUV.getVertexV(v) * .999 + faceUV.getVertexV((v + 2) % 4) * .001));
@@ -384,21 +394,81 @@ public enum UVLModelLoader implements ICustomModelLoader {
                     case POSITION:
                     	EnumFaceDirection.VertexInformation enumfacedirection$vertexinformation = EnumFaceDirection.getFacing(facing).getVertexInformation(v);
                         Vector3f p = new Vector3f(vertices[enumfacedirection$vertexinformation.xIndex], vertices[enumfacedirection$vertexinformation.yIndex], vertices[enumfacedirection$vertexinformation.zIndex]);
+			faceBakery.rotateVertex(p, facing, v, transform);
+			this.rotatePart(p, part.partRotation);
                         builder.put(i, p.x, p.y, p.z);
                         break;
                     case COLOR:
-                        //builder.put(i, 255, 255, 255, 255); //Pretty things
-                        break;
+                        builder.put(i, 1, 1, 1, 1);
+			break;
                     default:
-                        //builder.put(i, this.builder.data.get(ele.getUsage()).get(v));
+                        builder.put(i);
                     }
                 }
             }
 
-            AELog.info("Baking a quad");
             return builder.build();
-        	//return faceBakery.makeBakedQuad(blockPartt.positionFrom, blockPartt.positionTo, blockPartFaceIn, sprite, face, transform, blockPartt.partRotation, uvLocked, blockPartt.shade);
         }
+
+    private void rotatePart(Vector3f p_178407_1_, @Nullable BlockPartRotation partRotation)
+	{
+	    if (partRotation != null)
+		{
+		    Matrix4f matrix4f = this.getMatrixIdentity();
+		    Vector3f vector3f = new Vector3f(0.0F, 0.0F, 0.0F);
+
+		    switch (partRotation.axis)
+			{
+			case X:
+			    Matrix4f.rotate(partRotation.angle * 0.017453292F, new Vector3f(1.0F, 0.0F, 0.0F), matrix4f, matrix4f);
+			    vector3f.set(0.0F, 1.0F, 1.0F);
+			    break;
+			case Y:
+			    Matrix4f.rotate(partRotation.angle * 0.017453292F, new Vector3f(0.0F, 1.0F, 0.0F), matrix4f, matrix4f);
+			    vector3f.set(1.0F, 0.0F, 1.0F);
+			    break;
+			case Z:
+			    Matrix4f.rotate(partRotation.angle * 0.017453292F, new Vector3f(0.0F, 0.0F, 1.0F), matrix4f, matrix4f);
+			    vector3f.set(1.0F, 1.0F, 0.0F);
+			}
+
+		    if (partRotation.rescale)
+			{
+			    if (Math.abs(partRotation.angle) == 22.5F)
+				{
+				    vector3f.scale(SCALE_ROTATION_22_5);
+				}
+			    else
+				{
+				    vector3f.scale(SCALE_ROTATION_GENERAL);
+				}
+
+			    Vector3f.add(vector3f, new Vector3f(1.0F, 1.0F, 1.0F), vector3f);
+			}
+		    else
+			{
+			    vector3f.set(1.0F, 1.0F, 1.0F);
+			}
+
+		    this.rotateScale(p_178407_1_, new Vector3f(partRotation.origin), matrix4f, vector3f);
+		}
+	}
+	private void rotateScale(Vector3f position, Vector3f rotationOrigin, Matrix4f rotationMatrix, Vector3f scale)
+	{
+	    Vector4f vector4f = new Vector4f(position.x - rotationOrigin.x, position.y - rotationOrigin.y, position.z - rotationOrigin.z, 1.0F);
+	    Matrix4f.transform(rotationMatrix, vector4f, vector4f);
+	    vector4f.x *= scale.x;
+	    vector4f.y *= scale.y;
+	    vector4f.z *= scale.z;
+	    position.set(vector4f.x + rotationOrigin.x, vector4f.y + rotationOrigin.y, vector4f.z + rotationOrigin.z);
+	}
+
+	private Matrix4f getMatrixIdentity()
+	{
+	    Matrix4f matrix4f = new Matrix4f();
+	    matrix4f.setIdentity();
+	    return matrix4f;
+	}
         
         private static float[] getPositionsDiv16(Vector3f pos1, Vector3f pos2)
         {
@@ -424,70 +494,71 @@ public enum UVLModelLoader implements ICustomModelLoader {
             private final Map<EnumFacing, List<BakedQuad>> facingCutout;
             private final Map<EnumFacing, List<BakedQuad>> facingBloom;
             private final TextureAtlasSprite particle;
+	    private final boolean isGui3d;
+	    private final boolean isAmbientOcclusion;
+	    private final ItemOverrideList overrides;
         	
-            public UVLBakedModel(List<BakedQuad> generalCutout, Map<EnumFacing, List<BakedQuad>> facingCutout, List<BakedQuad> generalBloom, Map<EnumFacing, List<BakedQuad>> facingBloom, TextureAtlasSprite particle) {
-        		this.generalCutout = generalCutout;
-        		this.generalBloom = generalBloom;
-        		this.facingCutout = facingCutout;
-        		this.facingBloom = facingBloom;
-                        this.particle = particle;
-        		}
-			@Override
-			public List<BakedQuad> getQuads(IBlockState state, EnumFacing side, long rand) {
-				BlockRenderLayer layer = MinecraftForgeClient.getRenderLayer();
-				if (layer != null) {
-				if (layer.ordinal() == 4) {
-					if (side != null) {
-						return this.facingBloom.get(side);
-						} else {
-							return this.generalBloom;
-						}
-				} else {
-					if (side != null) {
-						return this.facingCutout.get(side);
-				} else {
-					return this.generalCutout;
-				}
-				}
-				} else {
-				    if (side != null) {
-					return this.facingCutout.get(side);
-				    } else {
-					return this.generalCutout;
-				    }
-				}
+            public UVLBakedModel(List<BakedQuad> generalCutout, Map<EnumFacing, List<BakedQuad>> facingCutout, List<BakedQuad> generalBloom, Map<EnumFacing, List<BakedQuad>> facingBloom, TextureAtlasSprite particle, boolean isGui3d, boolean isAmbientOcclusion, ItemOverrideList overrides) {
+                this.generalCutout = generalCutout;
+                this.generalBloom = generalBloom;
+                this.facingCutout = facingCutout;
+                this.facingBloom = facingBloom;
+                this.particle = particle;
+		this.isGui3d = isGui3d;
+		this.isAmbientOcclusion = isAmbientOcclusion;
+		this.overrides = overrides;
+            }
+            @Override
+            public List<BakedQuad> getQuads(IBlockState state, EnumFacing side, long rand) {
+                BlockRenderLayer layer = MinecraftForgeClient.getRenderLayer();
+                if (layer != null) {
+                    if (layer.ordinal() == 4) {
+                        if (side != null) {
+                            return this.facingBloom.get(side);
+                        } else {
+                            return this.generalBloom;
+                        }
+                    } else {
+                        if (side != null) {
+                            return this.facingCutout.get(side);
+                        } else {
+                            return this.generalCutout;
+                        }
+                    }
+                } else {
+                    if (side != null) {
+                        return this.facingCutout.get(side);
+                    } else {
+                        return this.generalCutout;
+                    }
+                }
 			
-			}
+            }
 
-			@Override
-			public boolean isAmbientOcclusion() {
-				// TODO Auto-generated method stub
-				return false;
-			}
+            @Override
+            public boolean isAmbientOcclusion() {
+                return this.isAmbientOcclusion;
+            }
 
-			@Override
-			public boolean isGui3d() {
-				// TODO Auto-generated method stub
-				return false;
-			}
+            @Override
+            public boolean isGui3d() {
+                return this.isGui3d;
+            }
 
-			@Override
-			public boolean isBuiltInRenderer() {
-				// TODO Auto-generated method stub
-				return false;
-			}
+            @Override
+            public boolean isBuiltInRenderer() {
+                return false;
+            }
 
-			@Override
-			public TextureAtlasSprite getParticleTexture() {
-				// TODO Auto-generated method stub
-				return null;
-			}
+            @Override
+            public TextureAtlasSprite getParticleTexture() {
+                return this.particle;
+	    }
 
-			@Override
-			public ItemOverrideList getOverrides() {
-				// TODO Auto-generated method stub
-				return null;
-			}
+            @Override
+            public ItemOverrideList getOverrides() {
+                return this.overrides;
+            }
         	
         }
 
@@ -542,19 +613,19 @@ public enum UVLModelLoader implements ICustomModelLoader {
                     UnpackedBakedQuad.Builder builder = new UnpackedBakedQuad.Builder(newFormat);
                     /*VertexLighterFlat trans = new VertexLighterFlat(Minecraft.getMinecraft().getBlockColors()) {
 
-                        @Override
-                        protected void updateLightmap(float[] normal, float[] lightmap, float x, float y, float z) {
-                            lightmap[0] = brightness.getRight();
-                            lightmap[1] = brightness.getLeft();
-                        }
+                      @Override
+                      protected void updateLightmap(float[] normal, float[] lightmap, float x, float y, float z) {
+                      lightmap[0] = brightness.getRight();
+                      lightmap[1] = brightness.getLeft();
+                      }
 
-                        @Override
-                        public void setQuadTint(int tint) {
-                            // Tint requires a block state which we don't have at this point
-                        }
-                    };
-                    trans.setParent(builder);
-                    quad.pipe(trans);*/
+                      @Override
+                      public void setQuadTint(int tint) {
+                      // Tint requires a block state which we don't have at this point
+                      }
+                      };
+                      trans.setParent(builder);
+                      quad.pipe(trans);*/
                     builder.setQuadTint(quad.getTintIndex());
                     builder.setQuadOrientation(quad.getFace());
                     builder.setTexture(quad.getSprite());

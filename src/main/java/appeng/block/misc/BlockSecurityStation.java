@@ -61,6 +61,14 @@ public class BlockSecurityStation extends AEBaseTileBlock {
         return BlockRenderLayer.CUTOUT;
     }
 
+    /*
+    @Override
+    public boolean canRenderInLayer(IBlockState state, BlockRenderLayer layer) {
+	return (state.getValue(POWERED) && layer.ordinal() == 4) || layer == BlockRenderLayer.CUTOUT;
+    }
+    */
+									     
+
     @Override
     public IBlockState getActualState(IBlockState state, IBlockAccess world, BlockPos pos) {
         boolean powered = false;

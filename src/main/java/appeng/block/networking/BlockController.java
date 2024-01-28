@@ -151,6 +151,11 @@ public class BlockController extends AEBaseTileBlock {
     }
 
     @Override
+    public boolean canRenderInLayer(IBlockState state, BlockRenderLayer layer) {
+	return (state.getValue(CONTROLLER_STATE) != ControllerBlockState.offline && layer.ordinal() == 4) || layer == BlockRenderLayer.CUTOUT;
+}
+
+    @Override
     public void neighborChanged(IBlockState state, World world, BlockPos pos, Block blockIn, BlockPos fromPos) {
         final TileController tc = this.getTileEntity(world, pos);
         if (tc != null) {
