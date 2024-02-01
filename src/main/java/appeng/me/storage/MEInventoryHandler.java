@@ -195,7 +195,7 @@ public class MEInventoryHandler<T extends IAEStack<T>> implements IMEInventoryHa
     }
 
     protected boolean canExtract(T request) {
-        return this.hasReadAccess && passesBlackOrWhitelist(request);
+        return this.hasReadAccess;
     }
 
     public boolean passesBlackOrWhitelist(T input) {
