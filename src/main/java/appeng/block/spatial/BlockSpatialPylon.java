@@ -89,4 +89,8 @@ public class BlockSpatialPylon extends AEBaseTileBlock {
         return BlockRenderLayer.CUTOUT;
     }
 
+    @Override
+    public boolean canRenderInLayer(IBlockState state, BlockRenderLayer layer) {
+	return layer == BlockRenderLayer.CUTOUT || layer.ordinal() == 4;
+    }
 }

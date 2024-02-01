@@ -30,10 +30,13 @@ import net.minecraft.client.renderer.block.model.ItemCameraTransforms;
 import net.minecraft.client.renderer.block.model.ItemOverrideList;
 import net.minecraft.client.renderer.texture.TextureAtlasSprite;
 import net.minecraft.client.renderer.vertex.VertexFormat;
+import net.minecraft.util.BlockRenderLayer;
 import net.minecraft.util.EnumFacing;
+import net.minecraftforge.client.MinecraftForgeClient;
 import net.minecraftforge.common.property.IExtendedBlockState;
 
 import javax.annotation.Nullable;
+import java.util.Collections;
 import java.util.List;
 import java.util.Map;
 
@@ -58,6 +61,7 @@ class SpatialPylonBakedModel implements IBakedModel {
 
         CubeBuilder builder = new CubeBuilder(this.format);
 
+	boolean bloom = false;
         if (flags != 0) {
             EnumFacing ori = null;
             int displayAxis = flags & TileSpatialPylon.DISPLAY_Z;
@@ -113,6 +117,7 @@ class SpatialPylonBakedModel implements IBakedModel {
             builder.addCube(0, 0, 0, 16, 16, 16);
 
             if ((flags & TileSpatialPylon.DISPLAY_POWERED_ENABLED) == TileSpatialPylon.DISPLAY_POWERED_ENABLED) {
+		bloom = true;
                 builder.setRenderFullBright(true);
             }
 
@@ -131,7 +136,18 @@ class SpatialPylonBakedModel implements IBakedModel {
             builder.addCube(0, 0, 0, 16, 16, 16);
         }
 
-        return builder.getOutput();
+	BlockRenderLayer layer = MinecraftForgeClient.getRenderLayer();
+	if (layer == BlockRenderLayer.CUTOUT) {
+	    if (!bloom) {
+	return builder.getOutput();
+	    }
+	} else if (layer.ordinal() == 4) {
+	    if (bloom) {
+		return builder.getOutput();
+	    }
+	}
+
+	return Collections.emptyList();
     }
 
     private int getFlags(IBlockState state) {
