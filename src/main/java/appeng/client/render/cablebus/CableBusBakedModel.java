@@ -63,8 +63,6 @@ public class CableBusBakedModel implements IBakedModel {
     private final TextureAtlasSprite particleTexture;
 
     private final TextureMap textureMap = Minecraft.getMinecraft().getTextureMapBlocks();
-    
-    private List<BakedQuad> bloomQuads = new ArrayList<>();
 
     private final LoadingCache<CableBusRenderState, List<BakedQuad>> cableModelCache;
 
@@ -106,18 +104,18 @@ public class CableBusBakedModel implements IBakedModel {
             // First, handle the cable at the center of the cable bus
             final List<BakedQuad> cableModel = cableModelCache.getUnchecked(renderState);
             quads.addAll(cableModel);
+        // First, handle the cable at the center of the cable bus
+        final List<BakedQuad> cableModel = CABLE_MODEL_CACHE.computeIfAbsent(renderState, k ->
+        {
+        final List<BakedQuad> model = new ArrayList<>();
+        this.addCableQuads(renderState, model);
+        return model;
+        });
+        quads.addAll(cableModel);
 	}*/
-        
-        if (layer == BlockRenderLayer.CUTOUT) {
-        	this.bloomQuads.clear();
-        	this.addCableQuads(renderState, quads, bloomQuads);
-        } else if (layer.ordinal() == 4) {
-        	quads.addAll(this.bloomQuads);
-        }
-
 	if (layer == BlockRenderLayer.CUTOUT || layer.ordinal() == 4) {
-		// cable core
-		
+            // cable core
+            this.addCableQuads(renderState, quads, layer);
             // Then handle attachments
             for (EnumFacing facing : EnumFacing.values()) {
                 final IPartModel partModel = renderState.getAttachments().get(facing);
@@ -136,23 +134,23 @@ public class CableBusBakedModel implements IBakedModel {
 		    if (bakedModel instanceof UVLModelLoader.UVLModel.UVLBakedModel) {
 			partQuads = bakedModel.getQuads(state, null, rand);
 		    } else if (bakedModel instanceof IPartBakedModel) {
-                    if (bakedModel instanceof P2PTunnelFrequencyBakedModel) {
-                        boolean powered = (renderState.getPartFlags().get(facing).longValue() & 0x10000L) != 0;
-                        if (powered && layer.ordinal() == 4) {
-                        partQuads = ((P2PTunnelFrequencyBakedModel) bakedModel).getPartQuads(renderState.getPartFlags().get(facing), rand);
+                        if (bakedModel instanceof P2PTunnelFrequencyBakedModel) {
+                            boolean powered = (renderState.getPartFlags().get(facing).longValue() & 0x10000L) != 0;
+                            if (powered && layer.ordinal() == 4) {
+                                partQuads = ((P2PTunnelFrequencyBakedModel) bakedModel).getPartQuads(renderState.getPartFlags().get(facing), rand);
+                            } else if (layer == BlockRenderLayer.CUTOUT) {
+                                partQuads = ((P2PTunnelFrequencyBakedModel) bakedModel).getPartQuads(renderState.getPartFlags().get(facing), rand);
+                            }
                         } else if (layer == BlockRenderLayer.CUTOUT) {
-                            partQuads = ((P2PTunnelFrequencyBakedModel) bakedModel).getPartQuads(renderState.getPartFlags().get(facing), rand);
+                            partQuads = ((IPartBakedModel) bakedModel).getPartQuads(renderState.getPartFlags().get(facing), rand);
                         }
-                    } else if (layer == BlockRenderLayer.CUTOUT) {
-                        partQuads = ((IPartBakedModel) bakedModel).getPartQuads(renderState.getPartFlags().get(facing), rand);
-                    }
                     } else if (layer == BlockRenderLayer.CUTOUT) {
                         partQuads = bakedModel.getQuads(state, null, rand);
                     }
                     // Rotate quads accordingly
 		    if (partQuads != null) {
-                    QuadRotator rotator = new QuadRotator();
-                    partQuads = rotator.rotateQuads(partQuads, facing, EnumFacing.UP);
+                        QuadRotator rotator = new QuadRotator();
+                        partQuads = rotator.rotateQuads(partQuads, facing, EnumFacing.UP);
 		    }
 
                     quads.addAll(partQuads);
@@ -190,7 +188,7 @@ public class CableBusBakedModel implements IBakedModel {
         return firstType == secondType && cableType == firstType && cableType == secondType;
     }
 
-    private void addCableQuads(CableBusRenderState renderState, List<BakedQuad> quadsOut, List<BakedQuad> bloomQuads) {
+    private void addCableQuads(CableBusRenderState renderState, List<BakedQuad> quadsOut, BlockRenderLayer layer) {
         AECableType cableType = renderState.getCableType();
         if (cableType == AECableType.NONE) {
             return;
@@ -205,7 +203,8 @@ public class CableBusBakedModel implements IBakedModel {
         if (noAttachments && isStraightLine(cableType, connectionTypes)) {
             EnumFacing facing = connectionTypes.keySet().iterator().next();
 
-            switch (cableType) {
+            if (layer == BlockRenderLayer.CUTOUT) {
+                switch (cableType) {
                 case GLASS:
                     this.cableBuilder.addStraightGlassConnection(facing, cableColor, quadsOut);
                     break;
@@ -213,22 +212,36 @@ public class CableBusBakedModel implements IBakedModel {
                     this.cableBuilder.addStraightCoveredConnection(facing, cableColor, quadsOut);
                     break;
                 case SMART:
-                    this.cableBuilder.addStraightSmartConnection(facing, cableColor, renderState.getChannelsOnSide().get(facing), quadsOut, bloomQuads);
+                    this.cableBuilder.addStraightSmartConnection(facing, cableColor, renderState.getChannelsOnSide().get(facing), quadsOut, layer);
                     break;
                 case DENSE_COVERED:
                     this.cableBuilder.addStraightDenseCoveredConnection(facing, cableColor, quadsOut);
                     break;
                 case DENSE_SMART:
-                    this.cableBuilder.addStraightDenseSmartConnection(facing, cableColor, renderState.getChannelsOnSide().get(facing), quadsOut, bloomQuads);
+                    this.cableBuilder.addStraightDenseSmartConnection(facing, cableColor, renderState.getChannelsOnSide().get(facing), quadsOut, layer);
                     break;
                 default:
                     break;
+                }
+            } else if (layer.ordinal() == 4) {
+                switch (cableType) {
+                case SMART:
+                    this.cableBuilder.addStraightSmartConnection(facing, cableColor, renderState.getChannelsOnSide().get(facing), quadsOut, layer);
+                    break;
+                case DENSE_SMART:
+                    this.cableBuilder.addStraightDenseSmartConnection(facing, cableColor, renderState.getChannelsOnSide().get(facing), quadsOut, layer);
+                    break;
+                default:
+                    break;
+                }
             }
 
             return; // Don't render the other form of connection
         }
 
-        this.cableBuilder.addCableCore(renderState.getCoreType(), cableColor, quadsOut);
+        if (layer == BlockRenderLayer.CUTOUT) {
+            this.cableBuilder.addCableCore(renderState.getCoreType(), cableColor, quadsOut);
+        }
 
         // Render all internal connections to attachments
         EnumMap<EnumFacing, Integer> attachmentConnections = renderState.getAttachmentConnections();
@@ -236,6 +249,7 @@ public class CableBusBakedModel implements IBakedModel {
             int distance = attachmentConnections.get(facing);
             int channels = renderState.getChannelsOnSide().get(facing);
 
+            if (layer == BlockRenderLayer.CUTOUT) {
             switch (cableType) {
                 case GLASS:
                     this.cableBuilder.addConstrainedGlassConnection(facing, cableColor, distance, quadsOut);
@@ -244,7 +258,7 @@ public class CableBusBakedModel implements IBakedModel {
                     this.cableBuilder.addConstrainedCoveredConnection(facing, cableColor, distance, quadsOut);
                     break;
                 case SMART:
-                    this.cableBuilder.addConstrainedSmartConnection(facing, cableColor, distance, channels, quadsOut, bloomQuads);
+                    this.cableBuilder.addConstrainedSmartConnection(facing, cableColor, distance, channels, quadsOut, layer);
                     break;
                 case DENSE_COVERED:
                 case DENSE_SMART:
@@ -252,6 +266,15 @@ public class CableBusBakedModel implements IBakedModel {
                     break;
                 default:
                     break;
+            }
+            } else if (layer.ordinal() == 4) {
+                switch (cableType) {
+                case SMART:
+                    this.cableBuilder.addConstrainedSmartConnection(facing, cableColor, distance, channels, quadsOut, layer);
+                    break;
+                default:
+                    break;
+                }
             }
         }
 
@@ -262,6 +285,7 @@ public class CableBusBakedModel implements IBakedModel {
             final boolean cableBusAdjacent = renderState.getCableBusAdjacent().contains(facing);
             final int channels = renderState.getChannelsOnSide().get(facing);
 
+            if (layer == BlockRenderLayer.CUTOUT) {
             switch (cableType) {
                 case GLASS:
                     this.cableBuilder.addGlassConnection(facing, cableColor, connectionType, cableBusAdjacent, quadsOut);
@@ -270,16 +294,28 @@ public class CableBusBakedModel implements IBakedModel {
                     this.cableBuilder.addCoveredConnection(facing, cableColor, connectionType, cableBusAdjacent, quadsOut);
                     break;
                 case SMART:
-                    this.cableBuilder.addSmartConnection(facing, cableColor, connectionType, cableBusAdjacent, channels, quadsOut, bloomQuads);
+                    this.cableBuilder.addSmartConnection(facing, cableColor, connectionType, cableBusAdjacent, channels, quadsOut, layer);
                     break;
                 case DENSE_COVERED:
                     this.cableBuilder.addDenseCoveredConnection(facing, cableColor, connectionType, cableBusAdjacent, quadsOut);
                     break;
                 case DENSE_SMART:
-                    this.cableBuilder.addDenseSmartConnection(facing, cableColor, connectionType, cableBusAdjacent, channels, quadsOut, bloomQuads);
+                    this.cableBuilder.addDenseSmartConnection(facing, cableColor, connectionType, cableBusAdjacent, channels, quadsOut, layer);
                     break;
                 default:
                     break;
+            }
+            } else if (layer.ordinal() == 4) {
+                switch(cableType) {
+                case SMART:
+                    this.cableBuilder.addSmartConnection(facing, cableColor, connectionType, cableBusAdjacent, channels, quadsOut, layer);
+                    break;
+                case DENSE_SMART:
+                    this.cableBuilder.addDenseSmartConnection(facing, cableColor, connectionType, cableBusAdjacent, channels, quadsOut, layer);
+                    break;
+                default:
+                    break;
+                }
             }
         }
     }
