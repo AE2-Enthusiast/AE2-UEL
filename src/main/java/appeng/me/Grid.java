@@ -26,6 +26,7 @@ import appeng.api.networking.events.MENetworkPostCacheConstruction;
 import appeng.api.util.IReadOnlyCollection;
 import appeng.core.worlddata.WorldData;
 import appeng.hooks.TickHandler;
+import appeng.me.cache.EnergyGridCache;
 import appeng.util.ReadOnlyCollection;
 
 import java.util.*;
@@ -224,6 +225,13 @@ public class Grid implements IGrid {
 
     public void update() {
         for (final IGridCache gc : this.caches.values()) {
+            if (gc instanceof GridCacheWrapper) {
+                if (((GridCacheWrapper) gc).getName().equals("appeng.me.cache.EnergyGridCache")) {
+                    continue;
+                }
+            } else if (gc instanceof EnergyGridCache) {
+                continue;
+            }
             // are there any nodes left?
             if (this.pivot != null) {
                 gc.onUpdateTick();

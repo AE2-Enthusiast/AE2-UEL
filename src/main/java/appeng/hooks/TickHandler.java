@@ -26,6 +26,7 @@ import appeng.api.util.AEColor;
 import appeng.core.AEConfig;
 import appeng.core.AELog;
 import appeng.core.AppEng;
+import appeng.core.features.registries.GridCacheRegistry;
 import appeng.core.sync.packets.PacketPaintedEntity;
 import appeng.crafting.CraftingJob;
 import appeng.me.Grid;
@@ -192,6 +193,7 @@ public class TickHandler {
 
             // tick networks.
             this.getRepo().updateNetworks();
+            GridCacheRegistry.energyCache.onUpdateTick();
             for (final Grid g : this.getRepo().networks) {
                 g.update();
             }
@@ -249,7 +251,7 @@ public class TickHandler {
     private static class HandlerRep {
 
         private Queue<AEBaseTile> tiles = new ArrayDeque<>();
-        private Set<Grid> networks = new HashSet<>();
+        public Set<Grid> networks = new HashSet<>();
         private Set<Grid> toAdd = new HashSet<>();
         private Set<Grid> toRemove = new HashSet<>();
 

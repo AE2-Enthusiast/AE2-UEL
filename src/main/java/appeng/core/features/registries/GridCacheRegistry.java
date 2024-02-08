@@ -22,7 +22,9 @@ package appeng.core.features.registries;
 import appeng.api.networking.IGrid;
 import appeng.api.networking.IGridCache;
 import appeng.api.networking.IGridCacheRegistry;
+import appeng.api.networking.energy.IEnergyGrid;
 import appeng.core.AELog;
+import appeng.me.cache.EnergyGridCache;
 
 import java.lang.reflect.Constructor;
 import java.lang.reflect.InvocationTargetException;
@@ -32,6 +34,7 @@ import java.util.Map;
 
 public final class GridCacheRegistry implements IGridCacheRegistry {
     private final Map<Class<? extends IGridCache>, Class<? extends IGridCache>> caches = new HashMap<>();
+    public static final EnergyGridCache energyCache = new EnergyGridCache();
 
     @Override
     public void registerGridCache(final Class<? extends IGridCache> iface, final Class<? extends IGridCache> implementation) {
@@ -48,8 +51,12 @@ public final class GridCacheRegistry implements IGridCacheRegistry {
 
         for (final Class<? extends IGridCache> iface : this.caches.keySet()) {
             try {
+                if (iface == IEnergyGrid.class) {
+                    map.put(iface, energyCache);
+                } else {
                 final Constructor<? extends IGridCache> c = this.caches.get(iface).getConstructor(IGrid.class);
                 map.put(iface, c.newInstance(g));
+                }
             } catch (final NoSuchMethodException e) {
                 AELog.error("Grid Caches must have a constructor with IGrid as the single param.");
                 throw new IllegalArgumentException(e);
