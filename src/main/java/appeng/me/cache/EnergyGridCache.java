@@ -44,15 +44,6 @@ import java.util.*;
 public class EnergyGridCache implements IEnergyGrid {
 
     private static final double MAX_BUFFER_STORAGE = 800;
-    private static final Comparator<IEnergyGridProvider> COMPARATOR_HIGHEST_AMOUNT_STORED_FIRST = (o1, o2) -> Double.compare(o2.getProviderStoredEnergy(), o1.getProviderStoredEnergy());
-
-    private static final Comparator<IEnergyGridProvider> COMPARATOR_LOWEST_PERCENTAGE_FIRST = (o1, o2) -> {
-        final double percent1 = (o1.getProviderStoredEnergy() + 1) / (o1.getProviderMaxEnergy() + 1);
-        final double percent2 = (o2.getProviderStoredEnergy() + 1) / (o2.getProviderMaxEnergy() + 1);
-
-        return Double.compare(percent1, percent2);
-    };
-
     private final NavigableSet<EnergyThreshold> interests = Sets.newTreeSet();
 
     // Should only be modified from the add/remove methods below to guard against
@@ -72,7 +63,6 @@ public class EnergyGridCache implements IEnergyGrid {
     // modifies the energy grid.
     private boolean ongoingInjectOperation = false;
 
-    private final Multiset<IEnergyGridProvider> energyGridProviders = HashMultiset.create();
     private final HashMap<IGridNode, IEnergyWatcher> watchers = new HashMap<>();
 
     /**
@@ -220,25 +210,7 @@ public class EnergyGridCache implements IEnergyGrid {
     @Override
     public double extractAEPower(final double amt, final Actionable mode, final PowerMultiplier pm) {
         final double toExtract = pm.multiply(amt);
-        final Queue<IEnergyGridProvider> toVisit = new PriorityQueue<>(COMPARATOR_HIGHEST_AMOUNT_STORED_FIRST);
-        final Set<IEnergyGridProvider> visited = new HashSet<>();
-
-        double extracted = 0;
-        toVisit.add(this);
-
-        while (!toVisit.isEmpty() && extracted < toExtract) {
-            final IEnergyGridProvider next = toVisit.poll();
-            visited.add(next);
-
-            extracted += next.extractProviderPower(toExtract - extracted, mode);
-
-            for (IEnergyGridProvider iEnergyGridProvider : next.providers()) {
-                if (!visited.contains(iEnergyGridProvider)) {
-                    toVisit.add(iEnergyGridProvider);
-                }
-            }
-        }
-
+        double extracted = this.extractProviderPower(toExtract, mode);
         return pm.divide(extracted);
     }
 
@@ -272,12 +244,12 @@ public class EnergyGridCache implements IEnergyGrid {
         this.globalAvailablePower = 0;
         for (final IAEPowerStorage p : this.providers) {
             this.globalAvailablePower += p.getAECurrentPower();
-        }	
+        }
     }
 
     @Override
     public Collection<IEnergyGridProvider> providers() {
-        return this.energyGridProviders;
+        return Collections.singletonList(this);
     }
 
     @Override
@@ -341,25 +313,7 @@ public class EnergyGridCache implements IEnergyGrid {
 
     @Override
     public double injectPower(final double amt, final Actionable mode) {
-        final Queue<IEnergyGridProvider> toVisit = new PriorityQueue<>(COMPARATOR_LOWEST_PERCENTAGE_FIRST);
-        final Set<IEnergyGridProvider> visited = new HashSet<>();
-        toVisit.add(this);
-
-        double leftover = amt;
-
-        while (!toVisit.isEmpty() && leftover > 0) {
-            final IEnergyGridProvider next = toVisit.poll();
-            visited.add(next);
-
-            leftover = next.injectProviderPower(leftover, mode);
-
-            for (IEnergyGridProvider iEnergyGridProvider : next.providers()) {
-                if (!visited.contains(iEnergyGridProvider)) {
-                    toVisit.add(iEnergyGridProvider);
-                }
-            }
-        }
-
+        double leftover = this.injectProviderPower(amt, mode);
         return leftover;
     }
 
@@ -375,26 +329,7 @@ public class EnergyGridCache implements IEnergyGrid {
 
     @Override
     public double getEnergyDemand(final double maxRequired) {
-        final Queue<IEnergyGridProvider> toVisit = new PriorityQueue<>(COMPARATOR_LOWEST_PERCENTAGE_FIRST);
-        final Set<IEnergyGridProvider> visited = new HashSet<>();
-        toVisit.add(this);
-
-        double required = 0;
-
-        while (!toVisit.isEmpty() && required < maxRequired) {
-            final IEnergyGridProvider next = toVisit.poll();
-            visited.add(next);
-
-            required += next.getProviderEnergyDemand(maxRequired - required);
-
-            for (IEnergyGridProvider iEnergyGridProvider : next.providers()) {
-                if (!visited.contains(iEnergyGridProvider)) {
-                    toVisit.add(iEnergyGridProvider);
-                }
-            }
-        }
-
-        return required;
+        return this.getProviderEnergyDemand(maxRequired);
     }
 
     @Override
@@ -409,10 +344,6 @@ public class EnergyGridCache implements IEnergyGrid {
 
     @Override
     public void removeNode(final IGridNode node, final IGridHost machine) {
-        if (machine instanceof IEnergyGridProvider) {
-            //this.energyGridProviders.remove(machine);
-        }
-
         // idle draw.
         final GridNode gridNode = (GridNode) node;
         this.drainPerTick -= gridNode.getPreviousDraw();
@@ -474,10 +405,6 @@ public class EnergyGridCache implements IEnergyGrid {
 
     @Override
     public void addNode(final IGridNode node, final IGridHost machine) {
-        if (machine instanceof IEnergyGridProvider) {
-            //this.energyGridProviders.add((IEnergyGridProvider) machine);
-        }
-
         // idle draw...
         final GridNode gridNode = (GridNode) node;
         final IGridBlock gb = gridNode.getGridBlock();
