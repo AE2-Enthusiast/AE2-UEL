@@ -251,7 +251,7 @@ public class TickHandler {
     private static class HandlerRep {
 
         private Queue<AEBaseTile> tiles = new ArrayDeque<>();
-        public Set<Grid> networks = new HashSet<>();
+        private Set<Grid> networks = new HashSet<>();
         private Set<Grid> toAdd = new HashSet<>();
         private Set<Grid> toRemove = new HashSet<>();
 
