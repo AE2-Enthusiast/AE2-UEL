@@ -100,15 +100,12 @@ public class EnergyGridCache implements IEnergyGrid {
 
     private double lastStoredPower = -1;
 
-    private final GridPowerStorage localStorage = new GridPowerStorage();
     private final Set<IAEPowerStorage> providerToRemove = new HashSet<>();
     private final Set<IAEPowerStorage> requesterToRemove = new HashSet<>();
     private final Set<IAEPowerStorage> providersToAdd = new HashSet<>();
     private final Set<IAEPowerStorage> requesterToAdd = new HashSet<>();
 
     public EnergyGridCache() {
-        this.requesters.add(this.localStorage);
-        this.providers.add(this.localStorage);
     }
 
     @MENetworkEventSubscribe
@@ -260,7 +257,7 @@ public class EnergyGridCache implements IEnergyGrid {
             this.globalAvailablePower -= extracted;
             this.tickDrainPerTick += extracted;
             if (this.globalAvailablePower <= 0) {
-                if (!this.isCapped && !this.wasCapped) {
+                if (!this.wasCapped) {
 		    this.writeToWorld(-this.amountInStorage);
 		}
 		this.isCapped = true;
@@ -279,7 +276,7 @@ public class EnergyGridCache implements IEnergyGrid {
             this.globalAvailablePower += toStore;
             this.tickInjectionPerTick += toStore;
             if (this.globalAvailablePower >= this.globalMaxPower) {
-                if (!this.isCapped && !this.wasCapped) {
+                if (!this.wasCapped) {
 		    this.writeToWorld(this.globalMaxPower - this.amountInStorage);
 		}
 		this.isCapped = true;
@@ -452,9 +449,9 @@ public class EnergyGridCache implements IEnergyGrid {
             swh.updateWatcher(iw);
         }
 
-        for (IGrid grid : TickHandler.INSTANCE.getGridList()) {
-            grid.postEventTo(node, new MENetworkPowerStatusChange());
-        }
+        //for (IGrid grid : TickHandler.INSTANCE.getGridList()) {
+        //    grid.postEventTo(node, new MENetworkPowerStatusChange());
+        //}
     }
 
     private void writeToWorld(double amt) {
@@ -472,7 +469,6 @@ public class EnergyGridCache implements IEnergyGrid {
 	this.providerToRemove.clear();
 
 	if (amt > 0) {
-	    AELog.info("Injecting %f AE into storage", amt);
 	    this.ongoingInjectOperation = true;
             Iterator<IAEPowerStorage> it = this.requesters.iterator();
             while (it.hasNext()) {
@@ -487,7 +483,6 @@ public class EnergyGridCache implements IEnergyGrid {
 	    this.ongoingInjectOperation = false;
 	} else if (amt < 0) {
 	    amt = -amt;
-	    AELog.info("Extracting %f AE from storage", amt);
 	    this.ongoingExtractOperation = true;
             Iterator<IAEPowerStorage> it = this.providers.iterator();
             while (it.hasNext()) {
@@ -509,19 +504,14 @@ public class EnergyGridCache implements IEnergyGrid {
 
     @Override
     public void onSplit(final IGridStorage storageB) {
-        final double newBuffer = this.localStorage.getAECurrentPower() / 2;
-        this.localStorage.removeCurrentAEPower(newBuffer);
-        storageB.dataObject().setDouble("buffer", newBuffer);
     }
 
     @Override
     public void onJoin(final IGridStorage storageB) {
-        this.localStorage.addCurrentAEPower(storageB.dataObject().getDouble("buffer"));
     }
 
     @Override
     public void populateGridStorage(final IGridStorage storage) {
-        storage.dataObject().setDouble("buffer", this.localStorage.getAECurrentPower());
     }
 
     public boolean registerEnergyInterest(final EnergyThreshold threshold) {
@@ -532,74 +522,4 @@ public class EnergyGridCache implements IEnergyGrid {
         return this.interests.remove(threshold);
     }
 
-    private class GridPowerStorage implements IAEPowerStorage {
-        private double stored = 0;
-
-        @Override
-        public double extractAEPower(double amt, Actionable mode, PowerMultiplier usePowerMultiplier) {
-            double extracted = Math.min(amt, this.stored);
-
-            if (mode == Actionable.MODULATE) {
-                this.removeCurrentAEPower(extracted);
-            }
-
-            return extracted;
-        }
-
-        @Override
-        public boolean isAEPublicPowerStorage() {
-            return true;
-        }
-
-        @Override
-        public double injectAEPower(double amt, Actionable mode) {
-            double toStore = Math.min(amt, MAX_BUFFER_STORAGE - this.stored);
-
-            if (mode == Actionable.MODULATE) {
-                this.addCurrentAEPower(toStore);
-            }
-
-            return amt - toStore;
-        }
-
-        @Override
-        public AccessRestriction getPowerFlow() {
-            return AccessRestriction.READ_WRITE;
-        }
-
-        @Override
-        public double getAEMaxPower() {
-            return MAX_BUFFER_STORAGE;
-        }
-
-        @Override
-        public double getAECurrentPower() {
-            return this.stored;
-        }
-
-        private void addCurrentAEPower(double amount) {
-            this.stored += amount;
-
-            if (this.stored > 0.01) {
-                if (TickHandler.INSTANCE.getGridList().iterator().hasNext()) {
-                    TickHandler.INSTANCE.getGridList().iterator().next().postEvent(new MENetworkPowerStorage(this, PowerEventType.PROVIDE_POWER));
-                }
-            }
-        }
-
-        private void removeCurrentAEPower(double amount) {
-            this.stored -= amount;
-
-            if (this.stored < MAX_BUFFER_STORAGE - 0.001) {
-                if (TickHandler.INSTANCE.getGridList().iterator().hasNext()) {
-                TickHandler.INSTANCE.getGridList().iterator().next().postEvent(new MENetworkPowerStorage(this, PowerEventType.REQUEST_POWER));
-                }
-            }
-
-            if (this.stored < 0.01) {
-                EnergyGridCache.this.ticksSinceHasPowerChange = 0;
-                EnergyGridCache.this.publicPowerState(false);
-            }
-        }
-    }
 }
