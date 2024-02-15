@@ -257,7 +257,7 @@ public class EnergyGridCache implements IEnergyGrid {
             this.globalAvailablePower -= extracted;
             this.tickDrainPerTick += extracted;
             if (this.globalAvailablePower <= 0) {
-                if (!this.isCapped && !this.wasCapped) {
+                if (this.amountInStorage >= 0) {
 		    this.writeToWorld(-this.amountInStorage);
 		}
 		this.isCapped = true;
@@ -276,7 +276,7 @@ public class EnergyGridCache implements IEnergyGrid {
             this.globalAvailablePower += toStore;
             this.tickInjectionPerTick += toStore;
             if (this.globalAvailablePower >= this.globalMaxPower) {
-                if (!this.isCapped && !this.wasCapped) {
+                if (this.amountInStorage <= this.globalMaxPower) {
 		    this.writeToWorld(this.globalMaxPower - this.amountInStorage);
 		}
 		this.isCapped = true;
@@ -351,7 +351,6 @@ public class EnergyGridCache implements IEnergyGrid {
             if (ps.isAEPublicPowerStorage()) {
                 if (ps.getPowerFlow() != AccessRestriction.WRITE) {
 		    this.isCapped = false;
-                    this.wasCapped = false;
                     this.globalMaxPower -= ps.getAEMaxPower();
 		    double current = ps.getAECurrentPower();
                     this.globalAvailablePower -= current;
@@ -419,7 +418,6 @@ public class EnergyGridCache implements IEnergyGrid {
 
                 if (ps.getPowerFlow() != AccessRestriction.WRITE) {
 		    this.isCapped = false;
-                    this.wasCapped = false;
                     this.globalMaxPower += ps.getAEMaxPower();
                 }
 
@@ -484,7 +482,7 @@ public class EnergyGridCache implements IEnergyGrid {
             }
 	    this.ongoingInjectOperation = false;
             if (amt != 0) {
-                AELog.debug("EnergyGrid storage underreporting? " + amt + " AE couldn't fit in storage");
+                AELog.debug("EnergyGrid requesters underreporting? " + amt + " AE couldn't fit in storage");
             }
 	} else if (amt < 0) {
 	    amt = -amt;
@@ -501,7 +499,7 @@ public class EnergyGridCache implements IEnergyGrid {
             }
 	    this.ongoingExtractOperation = false;
             if (amt != 0) {
-                AELog.debug("EnergyGrid storage overreporting? " + amt + " AE couldn't be extracted");
+                AELog.debug("EnergyGrid providers overreporting? " + amt + " AE couldn't be extracted");
             }
 	}
     }
