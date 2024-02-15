@@ -545,7 +545,7 @@ public class EnergyGridCache implements IEnergyGrid {
 	if (amt > 0) {
 	    AELog.info("Injecting %f AE into storage", amt);
 	    this.ongoingInjectOperation = true;
-            Iterator<IAEPowerStorage> it = this.requester.iterator();
+            Iterator<IAEPowerStorage> it = this.requesters.iterator();
             while (it.hasNext()) {
                 IAEPowerStorage requester = it.next();
 		amt = requester.injectAEPower(amt, Actionable.MODULATE);
