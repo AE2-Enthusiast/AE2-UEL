@@ -452,6 +452,8 @@ public class EnergyGridCache implements IEnergyGrid {
         //for (IGrid grid : TickHandler.INSTANCE.getGridList()) {
         //    grid.postEventTo(node, new MENetworkPowerStatusChange());
         //}
+
+        node.getGrid().postEventTo(node, new MENetworkPowerStatusChange());
     }
 
     private void writeToWorld(double amt) {
