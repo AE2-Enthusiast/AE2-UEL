@@ -36,7 +36,11 @@ import appeng.util.item.AEItemStack;
 import net.minecraft.entity.player.EntityPlayer;
 import net.minecraft.entity.player.EntityPlayerMP;
 import net.minecraft.entity.player.InventoryPlayer;
-import net.minecraft.inventory.*;
+import net.minecraft.inventory.IContainerListener;
+import net.minecraft.inventory.InventoryCraftResult;
+import net.minecraft.inventory.InventoryCrafting;
+import net.minecraft.inventory.Slot;
+import net.minecraft.inventory.SlotCrafting;
 import net.minecraft.item.ItemStack;
 import net.minecraft.item.crafting.CraftingManager;
 import net.minecraft.item.crafting.IRecipe;
@@ -229,10 +233,7 @@ public abstract class ContainerPatternEncoder extends ContainerMEMonitorable imp
             }
 
             // remove one, and clear the input slot.
-            output.setCount(output.getCount() - 1);
-            if (output.getCount() == 0) {
-                this.patternSlotIN.putStack(ItemStack.EMPTY);
-            }
+            this.consumeBlank();
 
             // add a new encoded pattern.
             Optional<ItemStack> maybePattern = AEApi.instance().definitions().items().encodedPattern().maybeStack(1);
@@ -263,6 +264,19 @@ public abstract class ContainerPatternEncoder extends ContainerMEMonitorable imp
         output.setTagCompound(encodedValue);
 
         patternSlotOUT.putStack(output);
+    }
+
+    public void consumeBlank() {
+        // reusing the itemstack in the slot allows this to work for any other blank
+        // pattern items (if they even exist)
+        ItemStack blankPatternStack = this.patternSlotIN.getStack();
+        IAEItemStack blankPatternAIS = AEApi.instance().storage().getStorageChannel(IItemStorageChannel.class)
+            .createStack(blankPatternStack.copy()).setStackSize(1);
+        final IAEItemStack extracted = Platform.poweredExtraction(this.getPowerSource(), this.getCellInventory(),
+                                                                  blankPatternAIS, this.getActionSource());
+        if (extracted == null) { // couldn't find any patterns in system, take from slot
+            this.patternSlotIN.decrStackSize(1);
+        }
     }
 
     public void multiply(int multiple) {
@@ -528,7 +542,6 @@ public abstract class ContainerPatternEncoder extends ContainerMEMonitorable imp
             this.fixCraftingRecipes();
         }
     }
-
 
     boolean isSubstitute() {
         return this.substitute;
