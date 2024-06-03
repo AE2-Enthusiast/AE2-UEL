@@ -28,7 +28,9 @@ import net.minecraft.client.renderer.block.model.ItemCameraTransforms;
 import net.minecraft.client.renderer.block.model.ItemOverrideList;
 import net.minecraft.client.renderer.texture.TextureAtlasSprite;
 import net.minecraft.client.renderer.vertex.VertexFormat;
+import net.minecraft.util.BlockRenderLayer;
 import net.minecraft.util.EnumFacing;
+import net.minecraftforge.client.MinecraftForgeClient;
 import net.minecraftforge.common.property.IExtendedBlockState;
 
 import javax.annotation.Nullable;
@@ -53,6 +55,8 @@ abstract class CraftingCubeBakedModel implements IBakedModel {
 
     private final TextureAtlasSprite ringVer;
 
+    protected boolean isBloomAware = false;
+
     CraftingCubeBakedModel(VertexFormat format, TextureAtlasSprite ringCorner, TextureAtlasSprite ringHor, TextureAtlasSprite ringVer) {
         this.format = format;
         this.ringCorner = ringCorner;
@@ -74,10 +78,14 @@ abstract class CraftingCubeBakedModel implements IBakedModel {
 
         builder.setDrawFaces(EnumSet.of(side));
 
-        // Add the quads for the ring that frames the entire multi-block structure
-        this.addRing(builder, side, connections);
+        BlockRenderLayer layer = MinecraftForgeClient.getRenderLayer();
+        if (layer == null || layer == BlockRenderLayer.CUTOUT) {
+            // Add the quads for the ring that frames the entire multi-block structure
+            this.addRing(builder, side, connections);
+        }
 
-        // Calculate the bounds of the "inner" block that is framed by the border drawn above
+        // Calculate the bounds of the "inner" block that is framed by the border drawn
+        // above
         float x2 = connections.contains(EnumFacing.EAST) ? 16 : 13.01f;
         float x1 = connections.contains(EnumFacing.WEST) ? 0 : 2.99f;
 
@@ -106,8 +114,13 @@ abstract class CraftingCubeBakedModel implements IBakedModel {
                 x2 = 16;
                 break;
         }
-
-        this.addInnerCube(side, state, builder, x1, y1, z1, x2, y2, z2);
+        if (this.isBloomAware) {
+            this.addInnerCube(side, state, builder, x1, y1, z1, x2, y2, z2);
+        } else {
+            if (layer == BlockRenderLayer.CUTOUT) {
+                this.addInnerCube(side, state, builder, x1, y1, z1, x2, y2, z2);
+            }
+        }
 
         return quads;
     }

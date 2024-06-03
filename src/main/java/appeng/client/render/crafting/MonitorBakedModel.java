@@ -25,7 +25,9 @@ import appeng.client.render.cablebus.CubeBuilder;
 import net.minecraft.block.state.IBlockState;
 import net.minecraft.client.renderer.texture.TextureAtlasSprite;
 import net.minecraft.client.renderer.vertex.VertexFormat;
+import net.minecraft.util.BlockRenderLayer;
 import net.minecraft.util.EnumFacing;
+import net.minecraftforge.client.MinecraftForgeClient;
 import net.minecraftforge.common.property.IExtendedBlockState;
 
 
@@ -55,40 +57,59 @@ class MonitorBakedModel extends CraftingCubeBakedModel {
         this.lightDarkTexture = lightDarkTexture;
         this.lightMediumTexture = lightMediumTexture;
         this.lightBrightTexture = lightBrightTexture;
+        this.isBloomAware = true;
     }
 
     @Override
     protected void addInnerCube(EnumFacing side, IBlockState state, CubeBuilder builder, float x1, float y1, float z1, float x2, float y2, float z2) {
         EnumFacing forward = getForward(state);
 
+        BlockRenderLayer layer = MinecraftForgeClient.getRenderLayer();
+        
         // For sides other than the front, use the chassis texture
         if (side != forward) {
-            builder.setTexture(this.chassisTexture);
-            builder.addCube(x1, y1, z1, x2, y2, z2);
+            if (layer == BlockRenderLayer.CUTOUT) {
+                builder.setTexture(this.chassisTexture);
+                builder.addCube(x1, y1, z1, x2, y2, z2);
+            }
             return;
         }
-
-        builder.setTexture(this.baseTexture);
-        builder.addCube(x1, y1, z1, x2, y2, z2);
-
+        
         // Now add the three layered light textures
         AEColor color = getColor(state);
         boolean powered = state.getValue(BlockCraftingMonitor.POWERED);
 
-        builder.setRenderFullBright(powered);
+        if (layer == null || layer == BlockRenderLayer.CUTOUT) {
+            builder.setTexture(this.baseTexture);
+            builder.addCube(x1, y1, z1, x2, y2, z2);
+            if (!powered) {
+                builder.setColorRGB(color.whiteVariant);
+                builder.setTexture(this.lightBrightTexture);
+                builder.addCube(x1, y1, z1, x2, y2, z2);
 
-        builder.setColorRGB(color.whiteVariant);
-        builder.setTexture(this.lightBrightTexture);
-        builder.addCube(x1, y1, z1, x2, y2, z2);
+                builder.setColorRGB(color.mediumVariant);
+                builder.setTexture(this.lightMediumTexture);
+                builder.addCube(x1, y1, z1, x2, y2, z2);
 
-        builder.setColorRGB(color.mediumVariant);
-        builder.setTexture(this.lightMediumTexture);
-        builder.addCube(x1, y1, z1, x2, y2, z2);
+                builder.setColorRGB(color.blackVariant);
+                builder.setTexture(this.lightDarkTexture);
+                builder.addCube(x1, y1, z1, x2, y2, z2);
+            }
+        } else if (powered) {
+            builder.setRenderFullBright(powered);
 
-        builder.setColorRGB(color.blackVariant);
-        builder.setTexture(this.lightDarkTexture);
-        builder.addCube(x1, y1, z1, x2, y2, z2);
+            builder.setColorRGB(color.whiteVariant);
+            builder.setTexture(this.lightBrightTexture);
+            builder.addCube(x1, y1, z1, x2, y2, z2);
 
+            builder.setColorRGB(color.mediumVariant);
+            builder.setTexture(this.lightMediumTexture);
+            builder.addCube(x1, y1, z1, x2, y2, z2);
+
+            builder.setColorRGB(color.blackVariant);
+            builder.setTexture(this.lightDarkTexture);
+            builder.addCube(x1, y1, z1, x2, y2, z2);
+        }
     }
 
     private static AEColor getColor(IBlockState state) {

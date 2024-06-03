@@ -24,7 +24,9 @@ import appeng.client.render.cablebus.CubeBuilder;
 import net.minecraft.block.state.IBlockState;
 import net.minecraft.client.renderer.texture.TextureAtlasSprite;
 import net.minecraft.client.renderer.vertex.VertexFormat;
+import net.minecraft.util.BlockRenderLayer;
 import net.minecraft.util.EnumFacing;
+import net.minecraftforge.client.MinecraftForgeClient;
 
 
 /**
@@ -41,14 +43,31 @@ class LightBakedModel extends CraftingCubeBakedModel {
         super(format, ringCorner, ringHor, ringVer);
         this.baseTexture = baseTexture;
         this.lightTexture = lightTexture;
+        this.isBloomAware = true;
     }
 
     @Override
     protected void addInnerCube(EnumFacing facing, IBlockState state, CubeBuilder builder, float x1, float y1, float z1, float x2, float y2, float z2) {
-        builder.setTexture(this.baseTexture);
-        builder.addCube(x1, y1, z1, x2, y2, z2);
-
+        BlockRenderLayer layer = MinecraftForgeClient.getRenderLayer();
+        if (layer == null || layer == BlockRenderLayer.CUTOUT) {
+            builder.setTexture(this.baseTexture);
+            builder.addCube(x1, y1, z1, x2, y2, z2);
+        }
         boolean powered = state.getValue(BlockCraftingUnit.POWERED);
+            if (layer == null) {
+                this.addLightCube(powered, builder, x1, y1, z1, x2, y2, z2);
+            } else if (powered) {
+                if (layer.ordinal() == 4) {
+                    this.addLightCube(true, builder, x1, y1, z1, x2, y2, z2);
+                }
+            } else {
+                if (layer == BlockRenderLayer.CUTOUT) {
+                    this.addLightCube(false, builder, x1, y1, z1, x2, y2, z2);
+                }
+            }
+    }
+
+    private void addLightCube(boolean powered, CubeBuilder builder, float x1, float y1, float z1, float x2, float y2, float z2) {
         builder.setRenderFullBright(powered);
         builder.setTexture(this.lightTexture);
         builder.addCube(x1, y1, z1, x2, y2, z2);

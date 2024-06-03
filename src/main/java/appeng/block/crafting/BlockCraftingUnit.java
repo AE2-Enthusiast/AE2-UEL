@@ -117,6 +117,16 @@ public class BlockCraftingUnit extends AEBaseTileBlock {
     }
 
     @Override
+    public boolean canRenderInLayer(IBlockState state, BlockRenderLayer layer) {
+        boolean isFormed = state.getValue(FORMED);
+        if (isFormed) {
+            return layer == null || layer == BlockRenderLayer.CUTOUT || layer.ordinal() == 4;
+        } else {
+            return layer == BlockRenderLayer.CUTOUT;
+        }
+    }
+
+    @Override
     public void breakBlock(final World w, final BlockPos pos, final IBlockState state) {
         final TileCraftingTile cp = this.getTileEntity(w, pos);
         if (cp != null) {
