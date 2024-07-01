@@ -110,7 +110,7 @@ public class CableBusBakedModel implements IBakedModel {
         });
         quads.addAll(cableModel);
 	}*/
-	if (layer == BlockRenderLayer.CUTOUT || layer.ordinal() == 4) {
+	if (layer != null && (layer == BlockRenderLayer.CUTOUT || layer.ordinal() == 4)) {
             // cable core
             this.addCableQuads(renderState, quads, layer);
             // Then handle attachments
