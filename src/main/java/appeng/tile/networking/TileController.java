@@ -21,6 +21,7 @@ package appeng.tile.networking;
 
 import appeng.api.config.Actionable;
 import appeng.api.networking.GridFlags;
+import appeng.api.networking.IGridNode;
 import appeng.api.networking.energy.IEnergyGrid;
 import appeng.api.networking.events.MENetworkControllerChange;
 import appeng.api.networking.events.MENetworkEventSubscribe;
@@ -28,11 +29,16 @@ import appeng.api.networking.events.MENetworkPowerStatusChange;
 import appeng.api.networking.events.MENetworkPowerStorage;
 import appeng.api.networking.events.MENetworkPowerStorage.PowerEventType;
 import appeng.api.networking.pathing.ControllerState;
+import appeng.api.networking.pathing.IChannelSource;
+import appeng.api.networking.pathing.IPathingGrid;
 import appeng.api.util.AECableType;
 import appeng.api.util.AEPartLocation;
+import appeng.api.util.DimensionalCoord;
 import appeng.block.networking.BlockController;
 import appeng.block.networking.BlockController.ControllerBlockState;
 import appeng.me.GridAccessException;
+import appeng.me.cache.PathGridCache;
+import appeng.me.pathfinding.ControllerValidator;
 import appeng.tile.grid.AENetworkPowerTile;
 import appeng.util.inv.InvOperation;
 import net.minecraft.item.ItemStack;
@@ -42,9 +48,10 @@ import net.minecraftforge.items.IItemHandler;
 import net.minecraftforge.items.wrapper.EmptyHandler;
 
 import java.util.EnumSet;
+import java.util.Set;
 
 
-public class TileController extends AENetworkPowerTile {
+public class TileController extends AENetworkPowerTile implements IChannelSource {
     private boolean isValid = false;
 
     public TileController() {
@@ -179,5 +186,24 @@ public class TileController extends AENetworkPowerTile {
         }
 
         return false;
+    }
+
+    @Override
+    public ControllerState isValidShape(Set<IChannelSource> sources) {
+        final IGridNode startingNode = this.getGridNode(AEPartLocation.INTERNAL);
+        if (startingNode == null) {
+            return ControllerState.CONTROLLER_CONFLICT;
+        }
+
+        final DimensionalCoord dc = startingNode.getGridBlock().getLocation();
+        final ControllerValidator cv = new ControllerValidator(dc.x, dc.y, dc.z);
+
+        startingNode.beginVisit(cv);
+        if (cv.isValid() && cv.getFound() == sources.size()) {
+            //if (cv.isValid()) {
+            return ControllerState.CONTROLLER_ONLINE;
+        } else {
+            return ControllerState.CONTROLLER_CONFLICT;
+        }
     }
 }

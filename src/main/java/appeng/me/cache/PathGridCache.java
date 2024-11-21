@@ -26,6 +26,7 @@ import appeng.api.networking.events.MENetworkChannelChanged;
 import appeng.api.networking.events.MENetworkControllerChange;
 import appeng.api.networking.events.MENetworkEventSubscribe;
 import appeng.api.networking.pathing.ControllerState;
+import appeng.api.networking.pathing.IChannelSource;
 import appeng.api.networking.pathing.IPathingGrid;
 import appeng.api.util.AEPartLocation;
 import appeng.api.util.DimensionalCoord;
@@ -46,7 +47,7 @@ import java.util.*;
 public class PathGridCache implements IPathingGrid {
 
     private final List<PathSegment> active = new ArrayList<>();
-    private final Set<TileController> controllers = new HashSet<>();
+    private final Set<IChannelSource> sources = new HashSet<>();
     private final Set<IGridNode> requireChannels = new HashSet<>();
     private final Set<IGridNode> blockDense = new HashSet<>();
     private final IGrid myGrid;
@@ -106,11 +107,12 @@ public class PathGridCache implements IPathingGrid {
 
                 // myGrid.getPivot().beginVisit( new AdHocChannelUpdater( 0 )
                 // );
-                for (final IGridNode node : this.myGrid.getMachines(TileController.class)) {
+                for (final IChannelSource source : this.sources) {
+                    IGridNode node = source.getGridNode(AEPartLocation.INTERNAL);
                     closedList.add((IPathItem) node);
                     for (final IGridConnection gcc : node.getConnections()) {
                         final GridConnection gc = (GridConnection) gcc;
-                        if (!(gc.getOtherSide(node).getMachine() instanceof TileController)) {
+                        if (!(gc.getOtherSide(node).getMachine() instanceof IChannelSource)) {
                             final List<IPathItem> open = new ArrayList<>();
                             closedList.add(gc);
                             open.add(gc);
@@ -136,9 +138,9 @@ public class PathGridCache implements IPathingGrid {
 
             if (this.active.isEmpty() && this.ticksUntilReady <= 0) {
                 if (this.controllerState == ControllerState.CONTROLLER_ONLINE) {
-                    final Iterator<TileController> controllerIterator = this.controllers.iterator();
+                    final Iterator<IChannelSource> controllerIterator = this.sources.iterator();
                     if (controllerIterator.hasNext()) {
-                        final TileController controller = controllerIterator.next();
+                        final IChannelSource controller = controllerIterator.next();
                         controller.getGridNode(AEPartLocation.INTERNAL).beginVisit(new ControllerChannelUpdater());
                     }
                 }
@@ -155,8 +157,8 @@ public class PathGridCache implements IPathingGrid {
 
     @Override
     public void removeNode(final IGridNode gridNode, final IGridHost machine) {
-        if (machine instanceof TileController) {
-            this.controllers.remove(machine);
+        if (machine instanceof IChannelSource) {
+            this.sources.remove(machine);
             this.recalculateControllerNextTick = true;
         }
 
@@ -175,8 +177,8 @@ public class PathGridCache implements IPathingGrid {
 
     @Override
     public void addNode(final IGridNode gridNode, final IGridHost machine) {
-        if (machine instanceof TileController) {
-            this.controllers.add((TileController) machine);
+        if (machine instanceof IChannelSource) {
+            this.sources.add((IChannelSource) machine);
             this.recalculateControllerNextTick = true;
         }
 
@@ -212,25 +214,10 @@ public class PathGridCache implements IPathingGrid {
         this.recalculateControllerNextTick = false;
         final ControllerState old = this.controllerState;
 
-        if (this.controllers.isEmpty()) {
+        if (this.sources.isEmpty()) {
             this.controllerState = ControllerState.NO_CONTROLLER;
         } else {
-            final IGridNode startingNode = this.controllers.iterator().next().getGridNode(AEPartLocation.INTERNAL);
-            if (startingNode == null) {
-                this.controllerState = ControllerState.CONTROLLER_CONFLICT;
-                return;
-            }
-
-            final DimensionalCoord dc = startingNode.getGridBlock().getLocation();
-            final ControllerValidator cv = new ControllerValidator(dc.x, dc.y, dc.z);
-
-            startingNode.beginVisit(cv);
-
-            if (cv.isValid() && cv.getFound() == this.controllers.size()) {
-                this.controllerState = ControllerState.CONTROLLER_ONLINE;
-            } else {
-                this.controllerState = ControllerState.CONTROLLER_CONFLICT;
-            }
+            this.controllerState = this.sources.iterator().next().isValidShape(this.sources);
         }
 
         if (old != this.controllerState) {
