@@ -76,6 +76,7 @@ public enum AEFeature {
     QUANTUM_NETWORK_BRIDGE("QuantumNetworkBridge", Constants.CATEGORY_NETWORK_FEATURES),
     QUANTUM_LINKING_CARD("QuantumLinkingCard", Constants.CATEGORY_NETWORK_FEATURES),
     CHANNELS("Channels", Constants.CATEGORY_NETWORK_FEATURES),
+    INFINTE_REQUIRE_CONTROLLER("InfiniteRequireController", Constants.CATEGORY_NETWORK_FEATURES, false, "true means ad-hoc networks only have 8 channels, even with infinte channels"),
 
     INTERFACE("Interface", Constants.CATEGORY_NETWORK_BUSES),
     FLUID_INTERFACE("FluidInterface", Constants.CATEGORY_NETWORK_BUSES),

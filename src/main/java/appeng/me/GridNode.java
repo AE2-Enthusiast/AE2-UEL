@@ -24,6 +24,7 @@ import appeng.api.exceptions.SecurityConnectionException;
 import appeng.api.networking.*;
 import appeng.api.networking.energy.IEnergyGrid;
 import appeng.api.networking.events.MENetworkChannelsChanged;
+import appeng.api.networking.pathing.ControllerState;
 import appeng.api.networking.pathing.IPathingGrid;
 import appeng.api.util.AEColor;
 import appeng.api.util.AEPartLocation;
@@ -306,6 +307,10 @@ public class GridNode implements IGridNode, IPathItem {
         if (this.gridProxy.getFlags().contains(GridFlags.REQUIRE_CHANNEL)) {
             if (AEConfig.instance().isFeatureEnabled(AEFeature.CHANNELS)) {
                 return this.getUsedChannels() > 0;
+            } else if (AEConfig.instance().isFeatureEnabled(AEFeature.INFINTE_REQUIRE_CONTROLLER)) {
+                if (((IPathingGrid) this.getMyGrid().getCache(IPathingGrid.class)).getControllerState() == ControllerState.NO_CONTROLLER) {
+                    return this.getUsedChannels() > 0;
+                    }
             }
         }
         return true;
