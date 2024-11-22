@@ -187,12 +187,12 @@ public class TileController extends AENetworkPowerTile implements IChannelSource
 
         return false;
     }
-
+    
     @Override
-    public ControllerState isValidShape(Set<IChannelSource> sources) {
+    public boolean isValidShape(Set<IChannelSource> sources) {
         final IGridNode startingNode = this.getGridNode(AEPartLocation.INTERNAL);
         if (startingNode == null) {
-            return ControllerState.CONTROLLER_CONFLICT;
+            return false;
         }
 
         final DimensionalCoord dc = startingNode.getGridBlock().getLocation();
@@ -200,10 +200,9 @@ public class TileController extends AENetworkPowerTile implements IChannelSource
 
         startingNode.beginVisit(cv);
         if (cv.isValid() && cv.getFound() == sources.size()) {
-            //if (cv.isValid()) {
-            return ControllerState.CONTROLLER_ONLINE;
+            return true;
         } else {
-            return ControllerState.CONTROLLER_CONFLICT;
+            return false;
         }
     }
 }

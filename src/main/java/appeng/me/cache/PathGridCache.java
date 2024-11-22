@@ -217,7 +217,7 @@ public class PathGridCache implements IPathingGrid {
         if (this.sources.isEmpty()) {
             this.controllerState = ControllerState.NO_CONTROLLER;
         } else {
-            this.controllerState = this.sources.iterator().next().isValidShape(this.sources);
+            this.controllerState = this.sources.iterator().next().isValidShape(this.sources) ? ControllerState.CONTROLLER_ONLINE : ControllerState.CONTROLLER_CONFLICT;
         }
 
         if (old != this.controllerState) {
